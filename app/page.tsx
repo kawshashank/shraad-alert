@@ -2,6 +2,17 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { Analytics } from "@vercel/analytics/react";
 
+const TIMEZONES = [
+  "Delhi, India (IST)",
+  "New York, USA (EST/EDT)",
+  "London, UK (GMT/BST)",
+  "Dubai, UAE (GST)",
+  "Singapore (SGT)",
+  "Toronto, CAN (EST/EDT)",
+  "San Francisco, USA (PST/PDT)",
+  "Sydney, AUS (AEST/AEDT)"
+];
+
 const KASHMIRI_TITHIS = [
   "Okdoh", "Doy", "Trey", "Choram", "Pancham", "Shish", "Saptam", "Aetham", "Navam", "Daham", "Kah", "Bah", "Truvah", "Tshodah"
 ];
@@ -18,6 +29,9 @@ export default function ShraadApp() {
   const [showWelcome, setShowWelcome] = useState(true);
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
   const [feedbackType, setFeedbackType] = useState('general');
+
+  // Shared Global State
+  const [selectedZone, setSelectedZone] = useState(TIMEZONES[0]);
 
   // Standard Calc
   const [personName, setPersonName] = useState("");
@@ -55,7 +69,6 @@ export default function ShraadApp() {
   const tithiOpts = [...KASHMIRI_TITHIS, revPaksha.includes("Zoon") ? "Purnima" : "Mawas (Amavasya)"];
 
   // --- BULLETPROOF EVENT HANDLERS ---
-  
   const handleDesktopDateChange = (val: string) => {
     setDeathDate(val);
     if (val) {
@@ -85,7 +98,6 @@ export default function ShraadApp() {
       setDeathDate(`${newY}-${mStr}-${dStr}`);
     }
   };
-
 
   // --- Dynamic Target Year Logic ---
   const availableYears = useMemo(() => {
@@ -137,7 +149,6 @@ export default function ShraadApp() {
       return;
     }
     
-    // UI RESET FIX: Instantly clear old results
     setCalcData(null);
     setLoadingCalc(true);
     
@@ -158,7 +169,8 @@ export default function ShraadApp() {
           death_date: deathDate,
           knows_time: knowsTime,
           death_time: timeStr,
-          target_year: parseInt(targetYear)
+          target_year: parseInt(targetYear),
+          timezone: selectedZone
         }),
       });
       const data = await res.json();
@@ -172,8 +184,6 @@ export default function ShraadApp() {
 
   const handleReverseSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // UI RESET FIX: Instantly clear old results
     setRevData(null);
     setLoadingRev(true);
     
@@ -186,7 +196,8 @@ export default function ShraadApp() {
           rev_year: parseInt(revYear),
           rev_month_name: revMonth,
           rev_paksha: revPaksha,
-          rev_tithi_name: revTithi
+          rev_tithi_name: revTithi,
+          timezone: selectedZone
         }),
       });
       const data = await res.json();
@@ -272,7 +283,7 @@ export default function ShraadApp() {
   const currentYear = new Date().getFullYear();
 
   return (
-    <div className="min-h-screen bg-[#F8F9FA] text-slate-800 font-sans selection:bg-[#111827] selection:text-white">
+    <div className="min-h-[100dvh] bg-[#F8F9FA] text-slate-800 font-sans selection:bg-[#111827] selection:text-white">
       
       <style dangerouslySetInnerHTML={{__html: `
         @keyframes subtleFadeUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
@@ -285,16 +296,18 @@ export default function ShraadApp() {
       `}} />
 
       {/* Subtle Background */}
-      <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
+      <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden h-[100dvh]">
         <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] rounded-full bg-[#111827]/5 blur-[120px]"></div>
         <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-slate-400/10 blur-[100px]"></div>
       </div>
 
       {/* --- Welcome Modal --- */}
       {showWelcome && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-[#111827]/60 backdrop-blur-md px-4">
-          <div className="bg-white w-full max-w-xl rounded-[2rem] shadow-2xl overflow-hidden anim-fade-up border border-slate-100">
-            <div className="bg-[#111827] p-8 text-center relative overflow-hidden">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-[#111827]/60 backdrop-blur-md px-4 h-[100dvh]">
+          <div className="bg-white w-full max-w-xl rounded-[2rem] shadow-2xl overflow-hidden anim-fade-up border border-slate-100 flex flex-col max-h-[85dvh] sm:max-h-[90dvh]">
+            
+            {/* Modal Header (Sticky) */}
+            <div className="bg-[#111827] p-6 sm:p-8 text-center relative overflow-hidden shrink-0">
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_var(--tw-gradient-stops))] from-slate-700/30 to-transparent"></div>
               <div className="relative z-10">
                 <span className="text-[10px] sm:text-xs uppercase tracking-[0.3em] font-semibold text-slate-300 block mb-2">Vijayshwar Jantri Aligned</span>
@@ -302,7 +315,8 @@ export default function ShraadApp() {
               </div>
             </div>
             
-            <div className="p-8 sm:p-10 space-y-8">
+            {/* Modal Body (Scrollable) */}
+            <div className="p-6 sm:p-8 space-y-6 sm:space-y-8 flex-1 overflow-y-auto">
               <p className="text-slate-600 text-sm sm:text-base leading-relaxed text-center">
                 Discover authentic traditional Kashmiri Shraad dates for your departed loved ones with mathematical precision.
               </p>
@@ -315,48 +329,62 @@ export default function ShraadApp() {
                   <li className="flex items-start"><span className="text-[#111827] text-lg mr-3 leading-none">📅</span><span><strong>Calendar Integration:</strong> Add calculated dates directly to your calendars.</span></li>
                 </ul>
               </div>
+            </div>
 
+            {/* Modal Footer (Sticky) */}
+            <div className="p-6 sm:p-8 pt-4 sm:pt-4 border-t border-slate-100 bg-white shrink-0">
               <button onClick={() => setShowWelcome(false)} className="w-full bg-[#111827] hover:bg-[#1e293b] text-white font-semibold py-4 rounded-2xl transition-all shadow-lg shadow-[#111827]/20">Enter Calculator</button>
             </div>
+
           </div>
         </div>
       )}
 
       {/* --- Feedback Modal --- */}
       {isFeedbackOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#111827]/60 backdrop-blur-md px-4">
-          <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden anim-fade-up">
-            <div className="flex justify-between items-center p-6 border-b border-slate-100 bg-slate-50">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#111827]/60 backdrop-blur-md px-4 h-[100dvh]">
+          <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden anim-fade-up flex flex-col max-h-[85dvh] sm:max-h-[90dvh]">
+            
+            {/* Modal Header (Sticky) */}
+            <div className="flex justify-between items-center p-6 border-b border-slate-100 bg-slate-50 shrink-0">
               <h3 className="font-serif font-bold text-xl text-slate-800 tracking-wide">Support & Feedback</h3>
               <button onClick={() => setIsFeedbackOpen(false)} className="text-slate-400 hover:text-slate-600 transition-colors text-xl">✕</button>
             </div>
-            <form onSubmit={handleFeedbackSubmit} className="p-8 space-y-5">
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-3">What would you like to share?</label>
-                <div className="flex flex-col space-y-3">
-                  <label className="flex items-center space-x-3 text-sm cursor-pointer group"><input type="radio" name="fb_type_group" value="general" checked={feedbackType === 'general'} onChange={() => setFeedbackType('general')} className="w-4 h-4 accent-[#111827]" /><span className="group-hover:text-[#111827] transition-colors font-medium">General Feedback / Suggestion</span></label>
-                  <label className="flex items-center space-x-3 text-sm cursor-pointer group"><input type="radio" name="fb_type_group" value="bug" checked={feedbackType === 'bug'} onChange={() => setFeedbackType('bug')} className="w-4 h-4 accent-[#111827]" /><span className="group-hover:text-[#111827] transition-colors font-medium">Report an Incorrect Date</span></label>
+
+            <form onSubmit={handleFeedbackSubmit} className="flex flex-col overflow-hidden flex-1">
+              {/* Modal Body (Scrollable) */}
+              <div className="p-6 sm:p-8 space-y-5 flex-1 overflow-y-auto">
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-3">What would you like to share?</label>
+                  <div className="flex flex-col space-y-3">
+                    <label className="flex items-center space-x-3 text-sm cursor-pointer group"><input type="radio" name="fb_type_group" value="general" checked={feedbackType === 'general'} onChange={() => setFeedbackType('general')} className="w-4 h-4 accent-[#111827]" /><span className="group-hover:text-[#111827] transition-colors font-medium">General Feedback / Suggestion</span></label>
+                    <label className="flex items-center space-x-3 text-sm cursor-pointer group"><input type="radio" name="fb_type_group" value="bug" checked={feedbackType === 'bug'} onChange={() => setFeedbackType('bug')} className="w-4 h-4 accent-[#111827]" /><span className="group-hover:text-[#111827] transition-colors font-medium">Report an Incorrect Date</span></label>
+                  </div>
                 </div>
-              </div>
-              
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">Your Email Address</label>
-                <input type="email" name="fb_email" placeholder="name@example.com" className="w-full bg-slate-50 border border-slate-200 p-3.5 rounded-2xl text-sm focus:ring-2 focus:ring-[#111827]/20 focus:border-[#111827] transition-all outline-none" required />
+                
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">Your Email Address</label>
+                  <input type="email" name="fb_email" placeholder="name@example.com" className="w-full bg-slate-50 border border-slate-200 p-3.5 rounded-2xl text-sm focus:ring-2 focus:ring-[#111827]/20 focus:border-[#111827] transition-all outline-none" required />
+                </div>
+
+                {feedbackType === 'bug' ? (
+                  <div className="space-y-4 anim-fade-up">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div><label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">Actual Date</label><input type="text" name="fb_dob" placeholder="e.g., 22 Jan 1960" className="w-full bg-slate-50 border border-slate-200 p-3.5 rounded-2xl text-sm focus:ring-2 focus:ring-[#111827]/20 focus:border-[#111827] transition-all outline-none" /></div>
+                      <div><label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">Expected (Jantri)</label><input type="text" name="fb_expected" placeholder="e.g., 10 Feb" className="w-full bg-slate-50 border border-slate-200 p-3.5 rounded-2xl text-sm focus:ring-2 focus:ring-[#111827]/20 focus:border-[#111827] transition-all outline-none" /></div>
+                    </div>
+                    <div><label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">App Result</label><input type="text" name="fb_actual" placeholder="e.g., 30 Jan" className="w-full bg-slate-50 border border-slate-200 p-3.5 rounded-2xl text-sm focus:ring-2 focus:ring-[#111827]/20 focus:border-[#111827] transition-all outline-none" /></div>
+                    <div><label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">Additional Notes</label><textarea name="fb_notes" rows={2} className="w-full bg-slate-50 border border-slate-200 p-3.5 rounded-2xl text-sm focus:ring-2 focus:ring-[#111827]/20 focus:border-[#111827] transition-all outline-none resize-none" placeholder="Time of passing, Year being checked, etc."></textarea></div>
+                  </div>
+                ) : (
+                  <div className="anim-fade-up"><label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">Your Feedback</label><textarea name="fb_text" rows={4} className="w-full bg-slate-50 border border-slate-200 p-3.5 rounded-2xl text-sm focus:ring-2 focus:ring-[#111827]/20 focus:border-[#111827] transition-all outline-none resize-none" placeholder="Type your suggestion here..." required></textarea></div>
+                )}
               </div>
 
-              {feedbackType === 'bug' ? (
-                <div className="space-y-4 anim-fade-up">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div><label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">Actual Date</label><input type="text" name="fb_dob" placeholder="e.g., 22 Jan 1960" className="w-full bg-slate-50 border border-slate-200 p-3.5 rounded-2xl text-sm focus:ring-2 focus:ring-[#111827]/20 focus:border-[#111827] transition-all outline-none" /></div>
-                    <div><label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">Expected (Jantri)</label><input type="text" name="fb_expected" placeholder="e.g., 10 Feb" className="w-full bg-slate-50 border border-slate-200 p-3.5 rounded-2xl text-sm focus:ring-2 focus:ring-[#111827]/20 focus:border-[#111827] transition-all outline-none" /></div>
-                  </div>
-                  <div><label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">App Result</label><input type="text" name="fb_actual" placeholder="e.g., 30 Jan" className="w-full bg-slate-50 border border-slate-200 p-3.5 rounded-2xl text-sm focus:ring-2 focus:ring-[#111827]/20 focus:border-[#111827] transition-all outline-none" /></div>
-                  <div><label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">Additional Notes</label><textarea name="fb_notes" rows={2} className="w-full bg-slate-50 border border-slate-200 p-3.5 rounded-2xl text-sm focus:ring-2 focus:ring-[#111827]/20 focus:border-[#111827] transition-all outline-none resize-none" placeholder="Time of passing, Year being checked, etc."></textarea></div>
-                </div>
-              ) : (
-                <div className="anim-fade-up"><label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">Your Feedback</label><textarea name="fb_text" rows={4} className="w-full bg-slate-50 border border-slate-200 p-3.5 rounded-2xl text-sm focus:ring-2 focus:ring-[#111827]/20 focus:border-[#111827] transition-all outline-none resize-none" placeholder="Type your suggestion here..." required></textarea></div>
-              )}
-              <button type="submit" className="w-full bg-[#111827] hover:bg-[#1e293b] text-white font-semibold py-4 rounded-2xl transition-all shadow-md">Send Message</button>
+              {/* Modal Footer (Sticky) */}
+              <div className="p-6 sm:p-8 pt-4 bg-white border-t border-slate-100 shrink-0">
+                <button type="submit" className="w-full bg-[#111827] hover:bg-[#1e293b] text-white font-semibold py-4 rounded-2xl transition-all shadow-md">Send Message</button>
+              </div>
             </form>
           </div>
         </div>
@@ -405,11 +433,12 @@ export default function ShraadApp() {
               <div className="p-6 sm:p-10 space-y-8 anim-fade-up">
                 <form onSubmit={handleStandardSubmit} className="space-y-8">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    
                     <div className="md:col-span-2">
                       <label className="block text-[10px] uppercase tracking-[0.2em] font-bold text-slate-400 mb-2 ml-1">Name of Departed Soul (Optional)</label>
                       <input type="text" value={personName} onChange={(e) => setPersonName(e.target.value)} placeholder="e.g. Ram" className="w-full bg-slate-50 border border-slate-200 p-3.5 rounded-2xl text-sm focus:ring-2 focus:ring-[#111827]/10 focus:border-[#111827]/40 transition-all outline-none text-slate-800 placeholder-slate-400" />
                     </div>
-                    
+
                     <div>
                       <label className="block text-[10px] uppercase tracking-[0.2em] font-bold text-slate-400 mb-2 ml-1">Date of Passing</label>
                       
@@ -462,6 +491,17 @@ export default function ShraadApp() {
                         <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-400"><svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg></div>
                       </div>
                     </div>
+
+                    <div className="md:col-span-2">
+                      <label className="block text-[10px] uppercase tracking-[0.2em] font-bold text-slate-400 mb-2 ml-1">Timezone of passing</label>
+                      <div className="relative">
+                        <select value={selectedZone} onChange={(e) => setSelectedZone(e.target.value)} className="w-full bg-slate-50 border border-slate-200 p-3.5 rounded-2xl text-sm focus:ring-2 focus:ring-[#111827]/10 focus:border-[#111827]/40 transition-all outline-none text-slate-800 appearance-none">
+                          {TIMEZONES.map(z => <option key={z} value={z}>{z}</option>)}
+                        </select>
+                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-400"><svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg></div>
+                      </div>
+                    </div>
+
                   </div>
 
                   <div className="bg-slate-50/80 p-6 rounded-3xl border border-slate-100">
@@ -580,6 +620,16 @@ export default function ShraadApp() {
                       <label className="block text-[10px] uppercase tracking-[0.2em] font-bold text-slate-400 mb-2 ml-1">Tithi</label>
                       <div className="relative">
                         <select value={revTithi} onChange={(e) => setRevTithi(e.target.value)} className="w-full bg-slate-50 border border-slate-200 p-3.5 rounded-2xl text-sm focus:ring-2 focus:ring-[#111827]/10 focus:border-[#111827]/40 transition-all outline-none text-slate-800 appearance-none">{tithiOpts.map(t => <option key={t} value={t}>{t}</option>)}</select>
+                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-400"><svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg></div>
+                      </div>
+                    </div>
+
+                    <div className="md:col-span-2">
+                      <label className="block text-[10px] uppercase tracking-[0.2em] font-bold text-slate-400 mb-2 ml-1">Timezone of passing</label>
+                      <div className="relative">
+                        <select value={selectedZone} onChange={(e) => setSelectedZone(e.target.value)} className="w-full bg-slate-50 border border-slate-200 p-3.5 rounded-2xl text-sm focus:ring-2 focus:ring-[#111827]/10 focus:border-[#111827]/40 transition-all outline-none text-slate-800 appearance-none">
+                          {TIMEZONES.map(z => <option key={z} value={z}>{z}</option>)}
+                        </select>
                         <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-400"><svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg></div>
                       </div>
                     </div>
