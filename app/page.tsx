@@ -1,5 +1,6 @@
 'use client';
 import { useState, useRef, useEffect, useMemo } from 'react';
+import { Analytics } from "@vercel/analytics/react";
 
 const KASHMIRI_TITHIS = [
   "Okdoh", "Doy", "Trey", "Choram", "Pancham", "Shish", "Saptam", "Aetham", "Navam", "Daham", "Kah", "Bah", "Truvah", "Tshodah"
@@ -53,9 +54,8 @@ export default function ShraadApp() {
 
   const tithiOpts = [...KASHMIRI_TITHIS, revPaksha.includes("Zoon") ? "Purnima" : "Mawas (Amavasya)"];
 
-  // --- BULLETPROOF EVENT HANDLERS (No infinite loops) ---
+  // --- BULLETPROOF EVENT HANDLERS ---
   
-  // 1. When Desktop Calendar changes
   const handleDesktopDateChange = (val: string) => {
     setDeathDate(val);
     if (val) {
@@ -70,7 +70,6 @@ export default function ShraadApp() {
     }
   };
 
-  // 2. When Mobile Dropdowns change
   const handleMobileDateChange = (field: string, val: string) => {
     let newD = mobileDay;
     let newM = mobileMonth;
@@ -80,7 +79,6 @@ export default function ShraadApp() {
     if (field === 'month') { newM = val; setMobileMonth(val); }
     if (field === 'year') { newY = val; setMobileYear(val); }
 
-    // If all three fields are selected, stitch them together and update main date
     if (newD && newM && newY) {
       const dStr = String(newD).padStart(2, '0');
       const mStr = String(newM).padStart(2, '0');
@@ -138,6 +136,9 @@ export default function ShraadApp() {
       alert("Please select a complete Date of Passing.");
       return;
     }
+    
+    // UI RESET FIX: Instantly clear old results
+    setCalcData(null);
     setLoadingCalc(true);
     
     let timeStr = null;
@@ -171,7 +172,11 @@ export default function ShraadApp() {
 
   const handleReverseSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // UI RESET FIX: Instantly clear old results
+    setRevData(null);
     setLoadingRev(true);
+    
     try {
       const res = await fetch(`${API_URL}/api/reverse_lookup`, {
         method: 'POST',
@@ -194,7 +199,7 @@ export default function ShraadApp() {
   };
 
   const triggerTransfer = (rawDt: string) => {
-    handleDesktopDateChange(rawDt); // Safely sets main date & mobile fields
+    handleDesktopDateChange(rawDt);
     setPersonName(revName);
     setActiveTab(0);
     setCalcData(null);
@@ -637,6 +642,9 @@ export default function ShraadApp() {
         </div>
 
       </div>
+
+      {/* Analytics component included here */}
+      <Analytics />
     </div>
   );
 }
