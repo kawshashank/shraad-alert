@@ -222,7 +222,7 @@ export default function ShraadApp() {
     const startStr = rawDate.replace(/-/g, '') + 'T023000Z';
     const endStr = rawDate.replace(/-/g, '') + 'T073000Z';
     const title = `Shraad${name ? ' for ' + name : ''}`;
-    const details = "Calculated via Kashmiri Hindu Shraad Calculator based on Vijayshwar Jantri rules.";
+    const details = "Calculated via Kashmiri Hindu Shraad Calculator based on Jantri rules.";
     return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(title)}&dates=${startStr}/${endStr}&details=${encodeURIComponent(details)}`;
   };
 
@@ -232,7 +232,7 @@ export default function ShraadApp() {
     const endStr = rawDate.replace(/-/g, '') + 'T073000Z';
     const nowStr = new Date().toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
     const title = `Shraad${name ? ' for ' + name : ''}`;
-    const icsData = `BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Kashmiri Shraad Calculator//EN\r\nBEGIN:VEVENT\r\nUID:${nowStr}@kashmirishraad.com\r\nDTSTAMP:${nowStr}\r\nDTSTART:${startStr}\r\nDTEND:${endStr}\r\nSUMMARY:${title}\r\nDESCRIPTION:Calculated via Kashmiri Hindu Shraad Calculator based on Vijayshwar Jantri rules.\r\nEND:VEVENT\r\nEND:VCALENDAR`;
+    const icsData = `BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Kashmiri Shraad Calculator//EN\r\nBEGIN:VEVENT\r\nUID:${nowStr}@kashmirishraad.com\r\nDTSTAMP:${nowStr}\r\nDTSTART:${startStr}\r\nDTEND:${endStr}\r\nSUMMARY:${title}\r\nDESCRIPTION:Calculated via Kashmiri Hindu Shraad Calculator based on Jantri rules.\r\nEND:VEVENT\r\nEND:VCALENDAR`;
     const blob = new Blob([icsData], { type: 'text/calendar' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -310,7 +310,7 @@ export default function ShraadApp() {
             <div className="bg-[#111827] p-6 sm:p-8 text-center relative overflow-hidden shrink-0">
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_var(--tw-gradient-stops))] from-slate-700/30 to-transparent"></div>
               <div className="relative z-10">
-                <span className="text-[10px] sm:text-xs uppercase tracking-[0.3em] font-semibold text-slate-300 block mb-2">Vijayshwar Jantri Aligned</span>
+                <span className="text-[10px] sm:text-xs uppercase tracking-[0.3em] font-semibold text-slate-300 block mb-2">Jantri Aligned</span>
                 <h2 className="text-3xl sm:text-4xl font-serif font-bold text-white">Shraad Calculator</h2>
               </div>
             </div>
@@ -324,8 +324,8 @@ export default function ShraadApp() {
               <div className="space-y-4">
                 <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400 mb-4 text-center border-b border-slate-100 pb-2">Capabilities</h3>
                 <ul className="space-y-4 text-sm text-slate-700">
-                  <li className="flex items-start"><span className="text-[#111827] text-lg mr-3 leading-none">🕊️</span><span><strong>Search Shraad Date:</strong> Find the exact Shraad date for any upcoming year based on the English date of passing.</span></li>
-                  <li className="flex items-start"><span className="text-[#111827] text-lg mr-3 leading-none">🕰️</span><span><strong>Reverse Date Lookup:</strong> Use traditional Tithis to find the historical English date of passing.</span></li>
+                  <li className="flex items-start"><span className="text-[#111827] text-lg mr-3 leading-none">🕊️</span><span><strong>Search Shraad Date:</strong> Find the exact Shraad date for any upcoming year based on the Actual date of passing.</span></li>
+                  <li className="flex items-start"><span className="text-[#111827] text-lg mr-3 leading-none">🕰️</span><span><strong>Reverse Date Lookup:</strong> Use traditional Tithis to find the historical Actual date of passing.</span></li>
                   <li className="flex items-start"><span className="text-[#111827] text-lg mr-3 leading-none">📅</span><span><strong>Calendar Integration:</strong> Add calculated dates directly to your calendars.</span></li>
                 </ul>
               </div>
@@ -398,7 +398,7 @@ export default function ShraadApp() {
           <div>
             <span className="inline-block py-1 px-3 rounded-full bg-slate-200/50 text-[#111827] text-[10px] sm:text-xs uppercase tracking-[0.2em] font-bold mb-6 border border-slate-300/50 shadow-sm">Sacred Astronomical Alignment</span>
             <h1 className="text-5xl sm:text-6xl lg:text-7xl font-serif font-bold text-[#111827] leading-[1.1] mb-6">Shraad <br /> Calculator</h1>
-            <p className="text-slate-500 text-base sm:text-lg leading-relaxed max-w-md">Calculate authentic traditional Kashmiri Hindu Shraad dates for your departed loved ones, meticulously aligned with the Vijayshwar Jantri.</p>
+            <p className="text-slate-500 text-base sm:text-lg leading-relaxed max-w-md">Calculate authentic traditional Kashmiri Hindu Shraad dates for your departed loved ones, meticulously aligned with the Jantri.</p>
           </div>
 
           <div className="hidden lg:block space-y-8 mt-12 pb-8">
