@@ -1,6 +1,6 @@
 'use client';
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { Analytics } from "@vercel/analytics/react";
+//import { Analytics } from "@vercel/analytics/react";
 
 const TIMEZONES = [
   "Delhi, India (IST)",
@@ -707,7 +707,7 @@ export default function ShraadApp() {
       </div>
 
       {/* Analytics component included here */}
-      <Analytics />
+      {/* <Analytics /> */}
     </div>
   );
 }
