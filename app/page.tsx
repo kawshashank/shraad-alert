@@ -222,7 +222,7 @@ export default function ShraadApp() {
     const startStr = rawDate.replace(/-/g, '') + 'T023000Z';
     const endStr = rawDate.replace(/-/g, '') + 'T073000Z';
     const title = `Shraad${name ? ' for ' + name : ''}`;
-    const details = "Calculated via Kashmiri Hindu Shraad Calculator based on Jantri rules.";
+    const details = "Calculated via Kashmiri Hindu Shraad Calculator based on Vijayshwar Jantri rules.";
     return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(title)}&dates=${startStr}/${endStr}&details=${encodeURIComponent(details)}`;
   };
 
@@ -232,7 +232,7 @@ export default function ShraadApp() {
     const endStr = rawDate.replace(/-/g, '') + 'T073000Z';
     const nowStr = new Date().toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
     const title = `Shraad${name ? ' for ' + name : ''}`;
-    const icsData = `BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Kashmiri Shraad Calculator//EN\r\nBEGIN:VEVENT\r\nUID:${nowStr}@kashmirishraad.com\r\nDTSTAMP:${nowStr}\r\nDTSTART:${startStr}\r\nDTEND:${endStr}\r\nSUMMARY:${title}\r\nDESCRIPTION:Calculated via Kashmiri Hindu Shraad Calculator based on Jantri rules.\r\nEND:VEVENT\r\nEND:VCALENDAR`;
+    const icsData = `BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Kashmiri Shraad Calculator//EN\r\nBEGIN:VEVENT\r\nUID:${nowStr}@kashmirishraad.com\r\nDTSTAMP:${nowStr}\r\nDTSTART:${startStr}\r\nDTEND:${endStr}\r\nSUMMARY:${title}\r\nDESCRIPTION:Calculated via Kashmiri Hindu Shraad Calculator based on Vijayshwar Jantri rules.\r\nEND:VEVENT\r\nEND:VCALENDAR`;
     const blob = new Blob([icsData], { type: 'text/calendar' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -283,7 +283,7 @@ export default function ShraadApp() {
   const currentYear = new Date().getFullYear();
 
   return (
-    <div className="min-h-[100dvh] bg-[#F8F9FA] text-slate-800 font-sans selection:bg-[#111827] selection:text-white">
+    <div className="min-h-[100dvh] bg-[#F8F9FA] text-slate-800 font-sans selection:bg-[#111827] selection:text-white flex flex-col relative">
       
       <style dangerouslySetInnerHTML={{__html: `
         @keyframes subtleFadeUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
@@ -294,6 +294,18 @@ export default function ShraadApp() {
         .delay-200 { animation-delay: 0.2s; opacity: 0; }
         html { scroll-behavior: smooth; }
       `}} />
+
+      {/* --- Floating Back to Hub Button (Top Right) --- */}
+      <a 
+        href="https://vitastahub.vercel.app/" 
+        className="fixed top-4 right-4 sm:top-6 sm:right-6 z-[55] flex items-center gap-2 px-4 py-2 bg-white/90 backdrop-blur-md border border-slate-200/80 rounded-full shadow-sm text-[10px] sm:text-xs font-bold uppercase tracking-widest text-slate-500 hover:text-[#111827] hover:bg-white hover:shadow-md hover:-translate-x-0.5 transition-all"
+      >
+        <svg className="w-3 h-3 sm:w-4 sm:h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+        </svg>
+        <span className="hidden sm:inline">Vitasta Hub</span>
+        <span className="sm:hidden">Hub</span>
+      </a>
 
       {/* Subtle Background */}
       <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden h-[100dvh]">
@@ -310,7 +322,7 @@ export default function ShraadApp() {
             <div className="bg-[#111827] p-6 sm:p-8 text-center relative overflow-hidden shrink-0">
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_var(--tw-gradient-stops))] from-slate-700/30 to-transparent"></div>
               <div className="relative z-10">
-                <span className="text-[10px] sm:text-xs uppercase tracking-[0.3em] font-semibold text-slate-300 block mb-2">Jantri Aligned</span>
+                <span className="text-[10px] sm:text-xs uppercase tracking-[0.3em] font-semibold text-slate-300 block mb-2">Vijayshwar Jantri Aligned</span>
                 <h2 className="text-3xl sm:text-4xl font-serif font-bold text-white">Shraad Calculator</h2>
               </div>
             </div>
@@ -324,8 +336,8 @@ export default function ShraadApp() {
               <div className="space-y-4">
                 <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400 mb-4 text-center border-b border-slate-100 pb-2">Capabilities</h3>
                 <ul className="space-y-4 text-sm text-slate-700">
-                  <li className="flex items-start"><span className="text-[#111827] text-lg mr-3 leading-none">🕊️</span><span><strong>Search Shraad Date:</strong> Find the exact Shraad date for any upcoming year based on the Actual date of passing.</span></li>
-                  <li className="flex items-start"><span className="text-[#111827] text-lg mr-3 leading-none">🕰️</span><span><strong>Reverse Date Lookup:</strong> Use traditional Tithis to find the historical Actual date of passing.</span></li>
+                  <li className="flex items-start"><span className="text-[#111827] text-lg mr-3 leading-none">🕊️</span><span><strong>Search Shraad Date:</strong> Find the exact Shraad date for any upcoming year based on the English date of passing.</span></li>
+                  <li className="flex items-start"><span className="text-[#111827] text-lg mr-3 leading-none">🕰️</span><span><strong>Reverse Date Lookup:</strong> Use traditional Tithis to find the historical English date of passing.</span></li>
                   <li className="flex items-start"><span className="text-[#111827] text-lg mr-3 leading-none">📅</span><span><strong>Calendar Integration:</strong> Add calculated dates directly to your calendars.</span></li>
                 </ul>
               </div>
@@ -391,14 +403,14 @@ export default function ShraadApp() {
       )}
 
       {/* --- Main App Container --- */}
-      <div className="relative z-10 max-w-7xl mx-auto w-full flex flex-col lg:flex-row gap-12 lg:gap-20 pt-8 lg:pt-16">
+      <div className="relative z-10 max-w-7xl mx-auto w-full flex flex-col lg:flex-row gap-12 lg:gap-20 pt-20 sm:pt-24 lg:pt-28 pb-8 px-4 sm:px-8 flex-1">
         
         {/* LEFT COLUMN: Hero Section */}
-        <div className="lg:w-5/12 flex flex-col justify-between lg:sticky lg:top-16 h-auto lg:h-[calc(100vh-8rem)] anim-fade-up px-4 lg:px-0">
+        <div className="lg:w-5/12 flex flex-col justify-between lg:sticky lg:top-24 h-auto lg:max-h-[calc(100vh-8rem)] anim-fade-up">
           <div>
             <span className="inline-block py-1 px-3 rounded-full bg-slate-200/50 text-[#111827] text-[10px] sm:text-xs uppercase tracking-[0.2em] font-bold mb-6 border border-slate-300/50 shadow-sm">Sacred Astronomical Alignment</span>
             <h1 className="text-5xl sm:text-6xl lg:text-7xl font-serif font-bold text-[#111827] leading-[1.1] mb-6">Shraad <br /> Calculator</h1>
-            <p className="text-slate-500 text-base sm:text-lg leading-relaxed max-w-md">Calculate authentic traditional Kashmiri Hindu Shraad dates for your departed loved ones, meticulously aligned with the Jantri.</p>
+            <p className="text-slate-500 text-base sm:text-lg leading-relaxed max-w-md">Calculate authentic traditional Kashmiri Hindu Shraad dates for your departed loved ones, meticulously aligned with the Vijayshwar Jantri.</p>
           </div>
 
           <div className="hidden lg:block space-y-8 mt-12 pb-8">
@@ -418,7 +430,7 @@ export default function ShraadApp() {
         </div>
 
         {/* RIGHT COLUMN: The Interactive Calculator Card */}
-        <div className="lg:w-7/12 w-full anim-slide-right pb-12 px-2 lg:px-0">
+        <div className="lg:w-7/12 w-full anim-slide-right pb-12">
           <div className="bg-white rounded-[2rem] lg:rounded-[2.5rem] shadow-[0_20px_40px_-15px_rgba(17,24,39,0.1)] border border-slate-100 overflow-hidden">
             
             <div className="p-4 sm:p-6 bg-slate-50/50 border-b border-slate-100">
@@ -623,7 +635,7 @@ export default function ShraadApp() {
                         <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-400"><svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg></div>
                       </div>
                     </div>
-
+                    
                     <div className="md:col-span-2">
                       <label className="block text-[10px] uppercase tracking-[0.2em] font-bold text-slate-400 mb-2 ml-1">Timezone of passing</label>
                       <div className="relative">
@@ -633,6 +645,7 @@ export default function ShraadApp() {
                         <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-400"><svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg></div>
                       </div>
                     </div>
+
                   </div>
 
                   <div className="flex flex-col sm:flex-row gap-4 pt-2">
