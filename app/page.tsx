@@ -31,6 +31,9 @@ export default function ShraadApp() {
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
   const [feedbackType, setFeedbackType] = useState('general');
 
+  // Cold Start UX State
+  const [isSlowLoading, setIsSlowLoading] = useState(false);
+
   // Shared Global State
   const [selectedZone, setSelectedZone] = useState(TIMEZONES[0]);
   const [targetYear, setTargetYear] = useState(currentYear.toString());
@@ -68,12 +71,20 @@ export default function ShraadApp() {
   const [selectedPitraDate, setSelectedPitraDate] = useState<any>(null);
   const pitraResultsRef = useRef<HTMLDivElement>(null);
 
-  // LOCAL TEST CONFIG (Toggle back to live when pushed)
-  //const API_URL = "http://127.0.0.1:8000";
+  // LIVE CONFIG
   const API_URL = "https://shashankkaw-shraad-api.hf.space";
   const APP_URL = "https://kashmiri-shraad.vercel.app";
 
   const tithiOpts = [...KASHMIRI_TITHIS, revPaksha.includes("Zoon") ? "Purnima" : "Mawas (Amavasya)"];
+
+  // 1. SILENT PRE-WARM: Wake up the sleeping backend seamlessly on mount
+  useEffect(() => {
+    fetch(`${API_URL}/api/calculate_shraad`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ping: true }),
+    }).catch(() => {}); // Ignore all errors to keep UX uninterrupted
+  }, []);
 
   // WIPE RESULTS IF TAB CHANGES
   useEffect(() => {
@@ -176,7 +187,13 @@ export default function ShraadApp() {
     e.preventDefault();
     if (!deathDate) { alert("Please select a complete Date of Passing."); return; }
     
-    setCalcData(null); setLoadingCalc(true);
+    setCalcData(null); 
+    setLoadingCalc(true);
+    setIsSlowLoading(false);
+
+    // 2. SMART DELAY DETECTOR: Trigger after 3.5s
+    const slowTimer = setTimeout(() => setIsSlowLoading(true), 3500);
+
     let timeStr = null;
     if (knowsTime) {
       let hr = parseInt(deathHour);
@@ -194,13 +211,24 @@ export default function ShraadApp() {
       const data = await res.json();
       setCalcData(data);
       setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150);
-    } catch (err) { alert("Error connecting to backend API."); }
-    setLoadingCalc(false);
+    } catch (err) { 
+      alert("Error connecting to backend API."); 
+    } finally {
+      clearTimeout(slowTimer);
+      setLoadingCalc(false);
+      setIsSlowLoading(false);
+    }
   };
 
   const handleReverseSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setRevData(null); setLoadingRev(true);
+    setRevData(null); 
+    setLoadingRev(true);
+    setIsSlowLoading(false);
+
+    // 2. SMART DELAY DETECTOR: Trigger after 3.5s
+    const slowTimer = setTimeout(() => setIsSlowLoading(true), 3500);
+
     try {
       const res = await fetch(`${API_URL}/api/reverse_lookup`, {
         method: 'POST',
@@ -210,13 +238,24 @@ export default function ShraadApp() {
       const data = await res.json();
       setRevData(data);
       setTimeout(() => revResultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150);
-    } catch (err) { alert("Error connecting to backend API."); }
-    setLoadingRev(false);
+    } catch (err) { 
+      alert("Error connecting to backend API."); 
+    } finally {
+      clearTimeout(slowTimer);
+      setLoadingRev(false);
+      setIsSlowLoading(false);
+    }
   };
 
   const handlePitraSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setPitraData(null); setLoadingPitra(true);
+    setPitraData(null); 
+    setLoadingPitra(true);
+    setIsSlowLoading(false);
+
+    // 2. SMART DELAY DETECTOR: Trigger after 3.5s
+    const slowTimer = setTimeout(() => setIsSlowLoading(true), 3500);
+
     try {
       const res = await fetch(`${API_URL}/api/pitra_paksh`, {
         method: 'POST',
@@ -226,8 +265,13 @@ export default function ShraadApp() {
       const data = await res.json();
       setPitraData(data);
       setTimeout(() => pitraResultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150);
-    } catch (err) { alert("Error connecting to backend API."); }
-    setLoadingPitra(false);
+    } catch (err) { 
+      alert("Error connecting to backend API."); 
+    } finally {
+      clearTimeout(slowTimer);
+      setLoadingPitra(false);
+      setIsSlowLoading(false);
+    }
   };
 
   const triggerTransfer = (rawDt: string) => {
@@ -628,6 +672,19 @@ export default function ShraadApp() {
                     <button type="button" onClick={() => setIsFeedbackOpen(true)} className="w-full sm:w-1/4 bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 font-semibold py-4 rounded-2xl transition-all shadow-sm flex items-center justify-center gap-2">Feedback</button>
                   </div>
                 </form>
+              )}
+
+              {/* --- COLD START BANNER --- */}
+              {(isSlowLoading && (loadingCalc || loadingRev || loadingPitra)) && (
+                <div className="bg-amber-50 border border-amber-200 p-5 rounded-2xl shadow-sm anim-fade-up flex items-start gap-4 mb-2">
+                  <div className="text-2xl animate-spin mt-1">⏳</div>
+                  <div>
+                    <h4 className="text-[11px] font-bold text-amber-900 uppercase tracking-widest mb-1.5">🌙 Waking up the astronomical servers...</h4>
+                    <p className="text-[13px] sm:text-sm text-amber-800 leading-relaxed">
+                      Since we don’t charge Dakshina for this digital tool, our servers like to take naps to save energy. Our digital pandit is currently waking up, stretching, and finding his glasses. Please give him 15–20 seconds to do the math!
+                    </p>
+                  </div>
+                </div>
               )}
 
               {/* --- RESULTS AREA --- */}
