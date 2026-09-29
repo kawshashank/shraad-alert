@@ -295,7 +295,7 @@ export default function ShraadApp() {
     const startStr = rawDate.replace(/-/g, '') + 'T023000Z';
     const endStr = rawDate.replace(/-/g, '') + 'T073000Z';
     const title = `Shraad${name ? ' for ' + name : ''}`;
-    const details = "Calculated via Kashmiri Hindu Shraad Calculator based on Jantri rules.";
+    const details = "Calculated via Kashmiri Hindu Shraad Calculator based on traditional almanac rules.";
     return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(title)}&dates=${startStr}/${endStr}&details=${encodeURIComponent(details)}`;
   };
 
@@ -305,7 +305,7 @@ export default function ShraadApp() {
     const endStr = rawDate.replace(/-/g, '') + 'T073000Z';
     const nowStr = new Date().toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
     const title = `Shraad${name ? ' for ' + name : ''}`;
-    const icsData = `BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Kashmiri Shraad Calculator//EN\r\nBEGIN:VEVENT\r\nUID:${nowStr}@kashmirishraad.com\r\nDTSTAMP:${nowStr}\r\nDTSTART:${startStr}\r\nDTEND:${endStr}\r\nSUMMARY:${title}\r\nDESCRIPTION:Calculated via Kashmiri Hindu Shraad Calculator based on Jantri rules.\r\nEND:VEVENT\r\nEND:VCALENDAR`;
+    const icsData = `BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Kashmiri Shraad Calculator//EN\r\nBEGIN:VEVENT\r\nUID:${nowStr}@kashmirishraad.com\r\nDTSTAMP:${nowStr}\r\nDTSTART:${startStr}\r\nDTEND:${endStr}\r\nSUMMARY:${title}\r\nDESCRIPTION:Calculated via Kashmiri Hindu Shraad Calculator based on traditional almanac rules.\r\nEND:VEVENT\r\nEND:VCALENDAR`;
     const blob = new Blob([icsData], { type: 'text/calendar' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -386,7 +386,7 @@ export default function ShraadApp() {
             <div className="bg-[#111827] p-6 sm:p-8 text-center relative overflow-hidden shrink-0">
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_var(--tw-gradient-stops))] from-slate-700/30 to-transparent"></div>
               <div className="relative z-10">
-                <span className="text-[10px] sm:text-xs uppercase tracking-[0.3em] font-semibold text-slate-300 block mb-2">Jantri Aligned</span>
+                <span className="text-[10px] sm:text-xs uppercase tracking-[0.3em] font-semibold text-slate-300 block mb-2">Traditionally Aligned</span>
                 <h2 className="text-3xl sm:text-4xl font-serif font-bold text-white">Shraad Calculator</h2>
               </div>
             </div>
@@ -435,7 +435,7 @@ export default function ShraadApp() {
                   <div className="space-y-4 anim-fade-up">
                     <div className="grid grid-cols-2 gap-4">
                       <div><label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">Actual Date</label><input type="text" name="fb_dob" placeholder="e.g., 22 Jan 1960" className="w-full bg-slate-50 border border-slate-200 p-3.5 rounded-2xl text-sm focus:ring-2 focus:ring-[#111827]/20 focus:border-[#111827] transition-all outline-none" /></div>
-                      <div><label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">Expected (Jantri)</label><input type="text" name="fb_expected" placeholder="e.g., 10 Feb" className="w-full bg-slate-50 border border-slate-200 p-3.5 rounded-2xl text-sm focus:ring-2 focus:ring-[#111827]/20 focus:border-[#111827] transition-all outline-none" /></div>
+                      <div><label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">Expected (Traditional)</label><input type="text" name="fb_expected" placeholder="e.g., 10 Feb" className="w-full bg-slate-50 border border-slate-200 p-3.5 rounded-2xl text-sm focus:ring-2 focus:ring-[#111827]/20 focus:border-[#111827] transition-all outline-none" /></div>
                     </div>
                     <div><label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">App Result</label><input type="text" name="fb_actual" placeholder="e.g., 30 Jan" className="w-full bg-slate-50 border border-slate-200 p-3.5 rounded-2xl text-sm focus:ring-2 focus:ring-[#111827]/20 focus:border-[#111827] transition-all outline-none" /></div>
                     <div><label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">Additional Notes</label><textarea name="fb_notes" rows={2} className="w-full bg-slate-50 border border-slate-200 p-3.5 rounded-2xl text-sm focus:ring-2 focus:ring-[#111827]/20 focus:border-[#111827] transition-all outline-none resize-none" placeholder="Time of passing, Year being checked, etc."></textarea></div>
@@ -485,7 +485,7 @@ export default function ShraadApp() {
           <div>
             <span className="inline-block py-1 px-3 rounded-full bg-slate-200/50 text-[#111827] text-[10px] sm:text-xs uppercase tracking-[0.2em] font-bold mb-6 border border-slate-300/50 shadow-sm">Sacred Astronomical Alignment</span>
             <h1 className="text-5xl sm:text-6xl lg:text-7xl font-serif font-bold text-[#111827] leading-[1.1] mb-6">Shraad <br /> Calculator</h1>
-            <p className="text-slate-500 text-base sm:text-lg leading-relaxed max-w-md">Calculate authentic traditional Kashmiri Hindu Shraad dates for your departed loved ones, meticulously aligned with the Jantri.</p>
+            <p className="text-slate-500 text-base sm:text-lg leading-relaxed max-w-md">Calculate authentic traditional Kashmiri Hindu Shraad dates for your departed loved ones, meticulously aligned with the traditional almanac.</p>
           </div>
 
           <div className="hidden lg:block space-y-8 mt-12 pb-8">
