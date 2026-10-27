@@ -27,7 +27,7 @@ const currentYear = new Date().getFullYear();
 
 export default function ShraadApp() {
   const [activeTab, setActiveTab] = useState(0); 
-  const [showWelcome, setShowWelcome] = useState(true);
+  const [showWelcome, setShowWelcome] = useState(false);
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
   const [feedbackType, setFeedbackType] = useState('general');
 
@@ -71,11 +71,146 @@ export default function ShraadApp() {
   const [selectedPitraDate, setSelectedPitraDate] = useState<any>(null);
   const pitraResultsRef = useRef<HTMLDivElement>(null);
 
+  // Autofill Visual Cue & Hub Session States
+  const [blinkTargetYear, setBlinkTargetYear] = useState(false);
+  const [heartbeatSubmit, setHeartbeatSubmit] = useState(false);
+  const [hubUser, setHubUser] = useState<string | null>(null);
+  const [hubOrigin, setHubOrigin] = useState("https://vitastahub.vercel.app");
+
   // LIVE CONFIG
   const API_URL = "https://shashankkaw-shraad-api.hf.space";
   const APP_URL = "https://kashmiri-shraad.vercel.app";
 
   const tithiOpts = [...KASHMIRI_TITHIS, revPaksha.includes("Zoon") ? "Purnima" : "Mawas (Amavasya)"];
+
+  // 0. HUB SESSION & SAVED RECORD AUTOFILL
+  useEffect(() => {
+    const proxied = window.location.pathname.startsWith('/shraad');
+    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    const resolvedHubOrigin = proxied ? '' : (isLocal ? 'http://localhost:3000' : 'https://vitastahub.vercel.app');
+    setHubOrigin(resolvedHubOrigin);
+
+    const params = new URLSearchParams(window.location.search);
+    const userParam = params.get('hub_user');
+    if (userParam) {
+      setHubUser(userParam);
+    }
+
+    const sessionUrl = `${resolvedHubOrigin}/api/hub-session`;
+    fetch(sessionUrl, { credentials: 'include' })
+      .then(res => res.ok ? res.json() : null)
+      .then(sessionData => {
+        if (sessionData?.authenticated && sessionData?.user) {
+          setHubUser(sessionData.user.firstName || sessionData.user.name || 'Member');
+        }
+      })
+      .catch(() => {});
+
+    const isReverse = params.get('tab') === 'reverse';
+    const isAutofill = params.get('autofill') === '1';
+
+    if (isReverse) {
+      setShowWelcome(false);
+      setActiveTab(1);
+    }
+
+    if (isAutofill) {
+      setShowWelcome(false);
+      setActiveTab(0);
+      const nameParam = params.get('name');
+      if (nameParam) setPersonName(nameParam);
+
+      const dateParam = params.get('date');
+      if (dateParam) {
+        setDeathDate(dateParam);
+        const [y, m, d] = dateParam.split('-');
+        if (y && m && d) {
+          setMobileYear(y);
+          setMobileMonth(parseInt(m, 10).toString());
+          setMobileDay(parseInt(d, 10).toString());
+        }
+      }
+
+      const tzParam = params.get('tz');
+      if (tzParam && TIMEZONES.includes(tzParam)) {
+        setSelectedZone(tzParam);
+      }
+
+      if (params.get('knows_time') === '1') {
+        setKnowsTime(true);
+        if (params.get('hr')) setDeathHour(params.get('hr')!);
+        if (params.get('min')) setDeathMin(params.get('min')!);
+        if (params.get('ampm')) setDeathAmPm(params.get('ampm')!);
+      }
+
+      setBlinkTargetYear(true);
+      setHeartbeatSubmit(true);
+    }
+
+    if (!isReverse && !isAutofill) {
+      setShowWelcome(true);
+    }
+  }, []);
+
+  // 0.5 1-HOUR INACTIVITY AUTO-LOGOUT FOR HUB SESSION
+  useEffect(() => {
+    if (!hubUser) return;
+    const INACTIVITY_LIMIT_MS = 60 * 60 * 1000; // 1 hour
+    const ACTIVITY_KEY = 'vitasta_last_activity';
+    let lastActive = Date.now();
+    try {
+      localStorage.setItem(ACTIVITY_KEY, String(lastActive));
+    } catch {}
+
+    const triggerLogout = () => {
+      setHubUser(null);
+      try {
+        localStorage.removeItem(ACTIVITY_KEY);
+      } catch {}
+      window.location.href = `${hubOrigin}/logout`;
+    };
+
+    const onActivity = () => {
+      const now = Date.now();
+      if (now - lastActive >= INACTIVITY_LIMIT_MS) {
+        triggerLogout();
+        return;
+      }
+      if (now - lastActive > 10_000) {
+        lastActive = now;
+        try {
+          localStorage.setItem(ACTIVITY_KEY, String(now));
+        } catch {}
+      }
+    };
+
+    const checkIdle = () => {
+      const now = Date.now();
+      let storedLast = lastActive;
+      try {
+        const stored = localStorage.getItem(ACTIVITY_KEY);
+        if (stored) storedLast = Math.max(lastActive, Number(stored));
+      } catch {}
+      if (now - storedLast >= INACTIVITY_LIMIT_MS) {
+        triggerLogout();
+      }
+    };
+
+    const onVisChange = () => {
+      if (document.visibilityState === 'visible') checkIdle();
+    };
+
+    const events = ['pointerdown', 'keydown', 'touchstart', 'scroll'];
+    events.forEach(evt => window.addEventListener(evt, onActivity, { passive: true }));
+    document.addEventListener('visibilitychange', onVisChange);
+    const timer = window.setInterval(checkIdle, 30_000);
+
+    return () => {
+      events.forEach(evt => window.removeEventListener(evt, onActivity));
+      document.removeEventListener('visibilitychange', onVisChange);
+      window.clearInterval(timer);
+    };
+  }, [hubUser, hubOrigin]);
 
   // 1. SILENT PRE-WARM: Wake up the sleeping backend seamlessly on mount
   useEffect(() => {
@@ -187,6 +322,8 @@ export default function ShraadApp() {
     e.preventDefault();
     if (!deathDate) { alert("Please select a complete Date of Passing."); return; }
     
+    setBlinkTargetYear(false);
+    setHeartbeatSubmit(false);
     setCalcData(null); 
     setLoadingCalc(true);
     setIsSlowLoading(false);
@@ -354,8 +491,21 @@ export default function ShraadApp() {
       <style dangerouslySetInnerHTML={{__html: `
         @keyframes subtleFadeUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes slideInRight { from { opacity: 0; transform: translateX(30px); } to { opacity: 1; transform: translateX(0); } }
+        @keyframes targetYearBlink {
+          0%, 100% { border-color: #f59e0b; box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.55); background-color: #fffbeb; }
+          50% { border-color: #d97706; box-shadow: 0 0 0 8px rgba(245, 158, 11, 0); background-color: #fef3c7; }
+        }
+        @keyframes btnHeartbeat {
+          0%, 100% { transform: scale(1); box-shadow: 0 10px 20px rgba(17, 24, 39, 0.2); }
+          14% { transform: scale(1.035); box-shadow: 0 14px 28px rgba(245, 158, 11, 0.45); }
+          28% { transform: scale(1); box-shadow: 0 10px 20px rgba(17, 24, 39, 0.2); }
+          42% { transform: scale(1.025); box-shadow: 0 12px 26px rgba(245, 158, 11, 0.35); }
+          70% { transform: scale(1); box-shadow: 0 10px 20px rgba(17, 24, 39, 0.2); }
+        }
         .anim-fade-up { animation: subtleFadeUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
         .anim-slide-right { animation: slideInRight 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        .target-year-blink { animation: targetYearBlink 1.3s ease-in-out infinite; border-width: 2px !important; }
+        .btn-heartbeat { animation: btnHeartbeat 1.6s ease-in-out infinite; }
         .delay-100 { animation-delay: 0.1s; opacity: 0; }
         .delay-200 { animation-delay: 0.2s; opacity: 0; }
         html { scroll-behavior: smooth; }
@@ -364,14 +514,31 @@ export default function ShraadApp() {
         .modal-scroll::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.1); border-radius: 10px; }
       `}} />
 
-      {/* --- Floating Back to Hub Button --- */}
-      <a href="https://vitastahub.vercel.app/" className="fixed top-4 right-4 sm:top-6 sm:right-6 z-[55] flex items-center gap-2 px-4 py-2 bg-white/90 backdrop-blur-md border border-slate-200/80 rounded-full shadow-sm text-[10px] sm:text-xs font-bold uppercase tracking-widest text-slate-500 hover:text-[#111827] hover:bg-white hover:shadow-md hover:-translate-x-0.5 transition-all">
-        <svg className="w-3 h-3 sm:w-4 sm:h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-        </svg>
-        <span className="hidden sm:inline">Vitasta Hub</span>
-        <span className="sm:hidden">Hub</span>
-      </a>
+      {/* --- Floating Top-Right Bar: Back to Hub + Logged-in User Status (Only if Logged In) --- */}
+      <div className="fixed top-4 right-4 sm:top-6 sm:right-6 z-[55] flex items-center gap-2">
+        {hubUser && (
+          <div className="flex items-center gap-1.5 pl-3 pr-1.5 py-1.5 bg-white/95 backdrop-blur-md border border-slate-300/90 rounded-full shadow-sm">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="text-[10px] sm:text-xs font-bold text-slate-700 max-w-[100px] sm:max-w-[140px] truncate">
+              {hubUser}
+            </span>
+            <a
+              href={`${hubOrigin}/logout`}
+              className="ml-1 px-2.5 py-1 rounded-full bg-rose-50 hover:bg-rose-100 text-rose-700 text-[10px] font-bold uppercase tracking-wider transition-colors"
+              title="Sign out from Vitasta Hub & all calculators"
+            >
+              Logout
+            </a>
+          </div>
+        )}
+        <a href={`${hubOrigin}/`} className="flex items-center gap-2 px-4 py-2 bg-white/90 backdrop-blur-md border border-slate-200/80 rounded-full shadow-sm text-[10px] sm:text-xs font-bold uppercase tracking-widest text-slate-500 hover:text-[#111827] hover:bg-white hover:shadow-md hover:-translate-x-0.5 transition-all">
+          <svg className="w-3 h-3 sm:w-4 sm:h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+          </svg>
+          <span className="hidden sm:inline">Vitasta Hub</span>
+          <span className="sm:hidden">Hub</span>
+        </a>
+      </div>
 
       {/* Subtle Background */}
       <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden h-[100dvh]">
@@ -525,31 +692,43 @@ export default function ShraadApp() {
               ))}
             </div>
 
-            <div className="p-6 sm:p-10 space-y-8 anim-fade-up">
+            <div className="p-4 sm:p-10 space-y-6 sm:space-y-8 anim-fade-up">
               
               {/* --- TAB 1: STANDARD SEARCH --- */}
               {activeTab === 0 && (
-                <form onSubmit={handleStandardSubmit} className="space-y-8">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <form onSubmit={handleStandardSubmit} className="space-y-6 sm:space-y-8">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
                     <div className="md:col-span-2">
                       <label className="block text-[10px] uppercase tracking-[0.2em] font-bold text-slate-400 mb-2 ml-1">Name of Departed Soul (Optional)</label>
-                      <input type="text" value={personName} onChange={(e) => setPersonName(e.target.value)} placeholder="e.g. Ram" className="w-full bg-slate-50 border border-slate-200 p-3.5 rounded-2xl text-sm focus:ring-2 focus:ring-[#111827]/10 focus:border-[#111827]/40 transition-all outline-none text-slate-800 placeholder-slate-400" />
+                      <input type="text" value={personName} onChange={(e) => setPersonName(e.target.value)} placeholder="e.g. Ram" className="w-full bg-slate-50 border border-slate-200 p-3 sm:p-3.5 rounded-2xl text-sm focus:ring-2 focus:ring-[#111827]/10 focus:border-[#111827]/40 transition-all outline-none text-slate-800 placeholder-slate-400" />
                     </div>
 
                     <div>
                       <label className="block text-[10px] uppercase tracking-[0.2em] font-bold text-slate-400 mb-2 ml-1">Date of Passing</label>
                       <input type="date" value={deathDate} onChange={(e) => handleDesktopDateChange(e.target.value)} className="hidden md:block w-full bg-slate-50 border border-slate-200 p-3.5 rounded-2xl text-sm focus:ring-2 focus:ring-[#111827]/10 focus:border-[#111827]/40 transition-all outline-none text-slate-800" />
                       <div className="md:hidden grid grid-cols-3 gap-2">
-                         <div className="relative"><select value={mobileDay} onChange={(e) => handleMobileDateChange('day', e.target.value)} className="w-full bg-slate-50 border border-slate-200 py-3.5 pl-3 pr-8 rounded-2xl text-sm focus:ring-2 focus:ring-[#111827]/10 transition-all outline-none text-slate-800 appearance-none"><option value="" disabled>Day</option>{Array.from({length: 31}, (_, i) => <option key={i+1} value={i+1}>{i+1}</option>)}</select><div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-400"><svg className="fill-current h-4 w-4" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg></div></div>
-                         <div className="relative"><select value={mobileMonth} onChange={(e) => handleMobileDateChange('month', e.target.value)} className="w-full bg-slate-50 border border-slate-200 py-3.5 pl-3 pr-8 rounded-2xl text-sm focus:ring-2 focus:ring-[#111827]/10 transition-all outline-none text-slate-800 appearance-none"><option value="" disabled>Mth</option>{ENG_MONTHS.map((m, i) => <option key={m} value={i+1}>{m}</option>)}</select><div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-400"><svg className="fill-current h-4 w-4" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg></div></div>
-                         <div className="relative"><select value={mobileYear} onChange={(e) => handleMobileDateChange('year', e.target.value)} className="w-full bg-slate-50 border border-slate-200 py-3.5 pl-3 pr-8 rounded-2xl text-sm focus:ring-2 focus:ring-[#111827]/10 transition-all outline-none text-slate-800 appearance-none"><option value="" disabled>Year</option>{Array.from({length: currentYear - 1920 + 1}, (_, i) => currentYear - i).map(y => <option key={y} value={y}>{y}</option>)}</select><div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-400"><svg className="fill-current h-4 w-4" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg></div></div>
+                         <div className="relative"><select value={mobileDay} onChange={(e) => handleMobileDateChange('day', e.target.value)} className="w-full bg-slate-50 border border-slate-200 py-3 pl-3 pr-7 rounded-2xl text-sm focus:ring-2 focus:ring-[#111827]/10 transition-all outline-none text-slate-800 appearance-none"><option value="" disabled>Day</option>{Array.from({length: 31}, (_, i) => <option key={i+1} value={i+1}>{i+1}</option>)}</select><div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-400"><svg className="fill-current h-4 w-4" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg></div></div>
+                         <div className="relative"><select value={mobileMonth} onChange={(e) => handleMobileDateChange('month', e.target.value)} className="w-full bg-slate-50 border border-slate-200 py-3 pl-3 pr-7 rounded-2xl text-sm focus:ring-2 focus:ring-[#111827]/10 transition-all outline-none text-slate-800 appearance-none"><option value="" disabled>Mth</option>{ENG_MONTHS.map((m, i) => <option key={m} value={i+1}>{m}</option>)}</select><div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-400"><svg className="fill-current h-4 w-4" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg></div></div>
+                         <div className="relative"><select value={mobileYear} onChange={(e) => handleMobileDateChange('year', e.target.value)} className="w-full bg-slate-50 border border-slate-200 py-3 pl-3 pr-7 rounded-2xl text-sm focus:ring-2 focus:ring-[#111827]/10 transition-all outline-none text-slate-800 appearance-none"><option value="" disabled>Year</option>{Array.from({length: currentYear - 1920 + 1}, (_, i) => currentYear - i).map(y => <option key={y} value={y}>{y}</option>)}</select><div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-400"><svg className="fill-current h-4 w-4" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg></div></div>
                       </div>
                     </div>
                     
                     <div>
-                      <label className="block text-[10px] uppercase tracking-[0.2em] font-bold text-slate-400 mb-2 ml-1">Find Shraad For Year</label>
+                      <div className="flex items-center justify-between mb-2 ml-1">
+                        <label className="block text-[10px] uppercase tracking-[0.2em] font-bold text-slate-400">Find Shraad For Year</label>
+                        {blinkTargetYear && (
+                          <span className="px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider bg-amber-500 text-white rounded-full animate-bounce shadow-sm">
+                            Change year if needed
+                          </span>
+                        )}
+                      </div>
                       <div className="relative">
-                        <select value={targetYear} onChange={(e) => setTargetYear(e.target.value)} className="w-full bg-slate-50 border border-slate-200 p-3.5 rounded-2xl text-sm focus:ring-2 focus:ring-[#111827]/10 focus:border-[#111827]/40 transition-all outline-none text-slate-800 appearance-none">
+                        <select
+                          value={targetYear}
+                          onChange={(e) => { setTargetYear(e.target.value); setBlinkTargetYear(false); }}
+                          onFocus={() => setBlinkTargetYear(false)}
+                          className={`w-full bg-slate-50 border border-slate-200 p-3 sm:p-3.5 rounded-2xl text-sm focus:ring-2 focus:ring-[#111827]/10 focus:border-[#111827]/40 transition-all outline-none text-slate-800 appearance-none ${blinkTargetYear ? 'target-year-blink' : ''}`}
+                        >
                           {availableYears.map(year => <option key={year} value={year}>{year}</option>)}
                         </select>
                         <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-400"><svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg></div>
@@ -559,7 +738,7 @@ export default function ShraadApp() {
                     <div className="md:col-span-2">
                       <label className="block text-[10px] uppercase tracking-[0.2em] font-bold text-slate-400 mb-2 ml-1">Timezone of passing</label>
                       <div className="relative">
-                        <select value={selectedZone} onChange={(e) => setSelectedZone(e.target.value)} className="w-full bg-slate-50 border border-slate-200 p-3.5 rounded-2xl text-sm focus:ring-2 focus:ring-[#111827]/10 focus:border-[#111827]/40 transition-all outline-none text-slate-800 appearance-none">
+                        <select value={selectedZone} onChange={(e) => setSelectedZone(e.target.value)} className="w-full bg-slate-50 border border-slate-200 p-3 sm:p-3.5 rounded-2xl text-sm focus:ring-2 focus:ring-[#111827]/10 focus:border-[#111827]/40 transition-all outline-none text-slate-800 appearance-none">
                           {TIMEZONES.map(z => <option key={z} value={z}>{z}</option>)}
                         </select>
                         <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-400"><svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg></div>
@@ -567,89 +746,89 @@ export default function ShraadApp() {
                     </div>
                   </div>
 
-                  <div className="bg-slate-50/80 p-6 rounded-3xl border border-slate-100">
+                  <div className="bg-slate-50/80 p-4 sm:p-6 rounded-2xl sm:rounded-3xl border border-slate-100">
                     <label className="flex items-center space-x-3 cursor-pointer group">
-                      <input type="checkbox" checked={knowsTime} onChange={(e) => setKnowsTime(e.target.checked)} className="w-5 h-5 accent-[#111827] rounded cursor-pointer" />
-                      <span className="text-sm font-semibold text-slate-700 group-hover:text-[#111827] transition-colors">I know the exact time of passing</span>
+                      <input type="checkbox" checked={knowsTime} onChange={(e) => setKnowsTime(e.target.checked)} className="w-4 h-4 sm:w-5 sm:h-5 accent-[#111827] rounded cursor-pointer" />
+                      <span className="text-xs sm:text-sm font-semibold text-slate-700 group-hover:text-[#111827] transition-colors">I know the exact time of passing</span>
                     </label>
                     {knowsTime && (
-                      <div className="grid grid-cols-3 gap-4 mt-5 anim-fade-up">
-                        <div className="relative"><select value={deathHour} onChange={(e) => setDeathHour(e.target.value)} className="w-full bg-white border border-slate-200 p-3 rounded-xl text-sm focus:ring-2 focus:ring-[#111827]/10 outline-none appearance-none text-slate-800">{Array.from({length: 12}, (_, i) => <option key={i+1} value={String(i+1).padStart(2, '0')}>{String(i+1).padStart(2, '0')}</option>)}</select></div>
-                        <div className="relative"><select value={deathMin} onChange={(e) => setDeathMin(e.target.value)} className="w-full bg-white border border-slate-200 p-3 rounded-xl text-sm focus:ring-2 focus:ring-[#111827]/10 outline-none appearance-none text-slate-800">{Array.from({length: 60}, (_, i) => <option key={i} value={String(i).padStart(2, '0')}>{String(i).padStart(2, '0')}</option>)}</select></div>
-                        <div className="relative"><select value={deathAmPm} onChange={(e) => setDeathAmPm(e.target.value)} className="w-full bg-white border border-slate-200 p-3 rounded-xl text-sm focus:ring-2 focus:ring-[#111827]/10 outline-none appearance-none text-slate-800"><option>AM</option><option>PM</option></select></div>
+                      <div className="grid grid-cols-3 gap-3 sm:gap-4 mt-4 sm:mt-5 anim-fade-up">
+                        <div className="relative"><select value={deathHour} onChange={(e) => setDeathHour(e.target.value)} className="w-full bg-white border border-slate-200 p-2.5 sm:p-3 rounded-xl text-sm focus:ring-2 focus:ring-[#111827]/10 outline-none appearance-none text-slate-800">{Array.from({length: 12}, (_, i) => <option key={i+1} value={String(i+1).padStart(2, '0')}>{String(i+1).padStart(2, '0')}</option>)}</select></div>
+                        <div className="relative"><select value={deathMin} onChange={(e) => setDeathMin(e.target.value)} className="w-full bg-white border border-slate-200 p-2.5 sm:p-3 rounded-xl text-sm focus:ring-2 focus:ring-[#111827]/10 outline-none appearance-none text-slate-800">{Array.from({length: 60}, (_, i) => <option key={i} value={String(i).padStart(2, '0')}>{String(i).padStart(2, '0')}</option>)}</select></div>
+                        <div className="relative"><select value={deathAmPm} onChange={(e) => setDeathAmPm(e.target.value)} className="w-full bg-white border border-slate-200 p-2.5 sm:p-3 rounded-xl text-sm focus:ring-2 focus:ring-[#111827]/10 outline-none appearance-none text-slate-800"><option>AM</option><option>PM</option></select></div>
                       </div>
                     )}
-                    {!knowsTime && <p className="text-xs text-slate-500 mt-3 ml-8 italic tracking-wide">If unknown, the calculation evaluates standard Sunrise boundary options automatically.</p>}
+                    {!knowsTime && <p className="text-[11px] sm:text-xs text-slate-500 mt-2 sm:mt-3 ml-7 sm:ml-8 italic tracking-wide">If unknown, the calculation evaluates standard Sunrise boundary options automatically.</p>}
                   </div>
 
-                  <div className="flex flex-col sm:flex-row gap-4 pt-2">
-                    <button type="submit" disabled={loadingCalc} className="w-full sm:w-3/4 bg-gradient-to-r from-[#111827] to-[#1e293b] hover:from-[#1e293b] hover:to-[#334155] text-white font-semibold py-4 rounded-2xl transition-all shadow-lg shadow-[#111827]/20">
+                  <div className="flex items-center gap-2.5 sm:gap-4 pt-1">
+                    <button type="submit" disabled={loadingCalc} className={`flex-1 bg-gradient-to-r from-[#111827] to-[#1e293b] hover:from-[#1e293b] hover:to-[#334155] text-white font-semibold py-3 sm:py-3.5 px-4 sm:px-6 rounded-xl sm:rounded-2xl text-xs sm:text-sm transition-all shadow-lg shadow-[#111827]/20 whitespace-nowrap ${heartbeatSubmit && !loadingCalc ? 'btn-heartbeat' : ''}`}>
                       {loadingCalc ? "Aligning Vectors..." : "Calculate Shraad Date"}
                     </button>
-                    <button type="button" onClick={() => setIsFeedbackOpen(true)} className="w-full sm:w-1/4 bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 font-semibold py-4 rounded-2xl transition-all shadow-sm flex items-center justify-center gap-2">Feedback</button>
+                    <button type="button" onClick={() => setIsFeedbackOpen(true)} className="shrink-0 bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 font-semibold py-3 sm:py-3.5 px-4 sm:px-6 rounded-xl sm:rounded-2xl text-xs sm:text-sm transition-all shadow-sm flex items-center justify-center whitespace-nowrap">Feedback</button>
                   </div>
                 </form>
               )}
 
               {/* --- TAB 2: REVERSE LOOKUP --- */}
               {activeTab === 1 && (
-                <form onSubmit={handleReverseSubmit} className="space-y-8">
-                  <div className="bg-slate-50/80 p-5 rounded-2xl border border-slate-100 text-center mx-auto mb-2">
-                    <p className="text-sm text-slate-600 leading-relaxed font-medium">If you only know the traditional Kashmiri Tithi and the year of passing, use this tool to find the exact historical calendar date.</p>
+                <form onSubmit={handleReverseSubmit} className="space-y-6 sm:space-y-8">
+                  <div className="bg-slate-50/80 p-3.5 sm:p-5 rounded-xl sm:rounded-2xl border border-slate-100 text-center mx-auto">
+                    <p className="text-xs sm:text-sm text-slate-600 leading-relaxed font-medium">If you only know the traditional Kashmiri Tithi and the year of passing, use this tool to find the exact historical calendar date.</p>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
                     <div className="md:col-span-2">
                       <label className="block text-[10px] uppercase tracking-[0.2em] font-bold text-slate-400 mb-2 ml-1">Name of Departed Soul (Optional)</label>
-                      <input type="text" value={revName} onChange={(e) => setRevName(e.target.value)} placeholder="e.g. Sita" className="w-full bg-slate-50 border border-slate-200 p-3.5 rounded-2xl text-sm focus:ring-2 focus:ring-[#111827]/10 focus:border-[#111827]/40 transition-all outline-none text-slate-800 placeholder-slate-400" />
+                      <input type="text" value={revName} onChange={(e) => setRevName(e.target.value)} placeholder="e.g. Sita" className="w-full bg-slate-50 border border-slate-200 p-3 sm:p-3.5 rounded-2xl text-sm focus:ring-2 focus:ring-[#111827]/10 focus:border-[#111827]/40 transition-all outline-none text-slate-800 placeholder-slate-400" />
                     </div>
                     <div>
                       <label className="block text-[10px] uppercase tracking-[0.2em] font-bold text-slate-400 mb-2 ml-1">Year of Passing</label>
-                      <input type="number" value={revYear} onChange={(e) => setRevYear(e.target.value)} className="w-full bg-slate-50 border border-slate-200 p-3.5 rounded-2xl text-sm focus:ring-2 focus:ring-[#111827]/10 focus:border-[#111827]/40 transition-all outline-none text-slate-800" min="1930" max="2100" />
+                      <input type="number" value={revYear} onChange={(e) => setRevYear(e.target.value)} className="w-full bg-slate-50 border border-slate-200 p-3 sm:p-3.5 rounded-2xl text-sm focus:ring-2 focus:ring-[#111827]/10 focus:border-[#111827]/40 transition-all outline-none text-slate-800" min="1930" max="2100" />
                     </div>
                     <div>
                       <label className="block text-[10px] uppercase tracking-[0.2em] font-bold text-slate-400 mb-2 ml-1">Timezone of passing</label>
                       <div className="relative">
-                        <select value={selectedZone} onChange={(e) => setSelectedZone(e.target.value)} className="w-full bg-slate-50 border border-slate-200 p-3.5 rounded-2xl text-sm focus:ring-2 focus:ring-[#111827]/10 focus:border-[#111827]/40 transition-all outline-none text-slate-800 appearance-none">
+                        <select value={selectedZone} onChange={(e) => setSelectedZone(e.target.value)} className="w-full bg-slate-50 border border-slate-200 p-3 sm:p-3.5 rounded-2xl text-sm focus:ring-2 focus:ring-[#111827]/10 focus:border-[#111827]/40 transition-all outline-none text-slate-800 appearance-none">
                           {TIMEZONES.map(z => <option key={z} value={z}>{z}</option>)}
                         </select>
                         <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-400"><svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg></div>
                       </div>
                     </div>
-                    <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
                       <div>
                         <label className="block text-[10px] uppercase tracking-[0.2em] font-bold text-slate-400 mb-2 ml-1">Lunar Month</label>
-                        <select value={revMonth} onChange={(e) => setRevMonth(e.target.value)} className="w-full bg-slate-50 border border-slate-200 p-3.5 rounded-2xl text-sm focus:ring-2 focus:ring-[#111827]/10 transition-all outline-none text-slate-800">{MONTH_NAMES.map(m => <option key={m} value={m}>{m}</option>)}</select>
+                        <select value={revMonth} onChange={(e) => setRevMonth(e.target.value)} className="w-full bg-slate-50 border border-slate-200 p-3 sm:p-3.5 rounded-2xl text-sm focus:ring-2 focus:ring-[#111827]/10 transition-all outline-none text-slate-800">{MONTH_NAMES.map(m => <option key={m} value={m}>{m}</option>)}</select>
                       </div>
                       <div>
                         <label className="block text-[10px] uppercase tracking-[0.2em] font-bold text-slate-400 mb-2 ml-1">Paksha</label>
-                        <select value={revPaksha} onChange={(e) => setRevPaksha(e.target.value)} className="w-full bg-slate-50 border border-slate-200 p-3.5 rounded-2xl text-sm focus:ring-2 focus:ring-[#111827]/10 transition-all outline-none text-slate-800"><option>Zoon Pachh (Shukla)</option><option>Gat Pachh (Krishna)</option></select>
+                        <select value={revPaksha} onChange={(e) => setRevPaksha(e.target.value)} className="w-full bg-slate-50 border border-slate-200 p-3 sm:p-3.5 rounded-2xl text-sm focus:ring-2 focus:ring-[#111827]/10 transition-all outline-none text-slate-800"><option>Zoon Pachh (Shukla)</option><option>Gat Pachh (Krishna)</option></select>
                       </div>
                       <div>
                         <label className="block text-[10px] uppercase tracking-[0.2em] font-bold text-slate-400 mb-2 ml-1">Tithi</label>
-                        <select value={revTithi} onChange={(e) => setRevTithi(e.target.value)} className="w-full bg-slate-50 border border-slate-200 p-3.5 rounded-2xl text-sm focus:ring-2 focus:ring-[#111827]/10 transition-all outline-none text-slate-800">{tithiOpts.map(t => <option key={t} value={t}>{t}</option>)}</select>
+                        <select value={revTithi} onChange={(e) => setRevTithi(e.target.value)} className="w-full bg-slate-50 border border-slate-200 p-3 sm:p-3.5 rounded-2xl text-sm focus:ring-2 focus:ring-[#111827]/10 transition-all outline-none text-slate-800">{tithiOpts.map(t => <option key={t} value={t}>{t}</option>)}</select>
                       </div>
                     </div>
                   </div>
-                  <div className="flex flex-col sm:flex-row gap-4 pt-2">
-                    <button type="submit" disabled={loadingRev} className="w-full sm:w-3/4 bg-gradient-to-r from-[#111827] to-[#1e293b] text-white font-semibold py-4 rounded-2xl transition-all shadow-lg shadow-[#111827]/20">
+                  <div className="flex items-center gap-2.5 sm:gap-4 pt-1">
+                    <button type="submit" disabled={loadingRev} className="flex-1 bg-gradient-to-r from-[#111827] to-[#1e293b] text-white font-semibold py-3 sm:py-3.5 px-4 sm:px-6 rounded-xl sm:rounded-2xl text-xs sm:text-sm transition-all shadow-lg shadow-[#111827]/20 whitespace-nowrap">
                       {loadingRev ? "Scanning Records..." : "Find Exact Date"}
                     </button>
-                    <button type="button" onClick={() => setIsFeedbackOpen(true)} className="w-full sm:w-1/4 bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 font-semibold py-4 rounded-2xl transition-all shadow-sm flex items-center justify-center gap-2">Feedback</button>
+                    <button type="button" onClick={() => setIsFeedbackOpen(true)} className="shrink-0 bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 font-semibold py-3 sm:py-3.5 px-4 sm:px-6 rounded-xl sm:rounded-2xl text-xs sm:text-sm transition-all shadow-sm flex items-center justify-center whitespace-nowrap">Feedback</button>
                   </div>
                 </form>
               )}
 
               {/* --- TAB 3: PITRA PAKSH CALENDAR --- */}
               {activeTab === 2 && (
-                <form onSubmit={handlePitraSubmit} className="space-y-8">
-                  <div className="bg-slate-50/80 p-5 rounded-2xl border border-slate-100 text-center mx-auto mb-2">
-                    <p className="text-sm text-slate-600 leading-relaxed font-medium">Generate the complete 15-day ancestral fortnight (Mahalaya Paksha) calendar for a target year.</p>
+                <form onSubmit={handlePitraSubmit} className="space-y-6 sm:space-y-8">
+                  <div className="bg-slate-50/80 p-3.5 sm:p-5 rounded-xl sm:rounded-2xl border border-slate-100 text-center mx-auto">
+                    <p className="text-xs sm:text-sm text-slate-600 leading-relaxed font-medium">Generate the complete 15-day ancestral fortnight (Mahalaya Paksha) calendar for a target year.</p>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
                     <div>
                       <label className="block text-[10px] uppercase tracking-[0.2em] font-bold text-slate-400 mb-2 ml-1">Target Year</label>
                       <div className="relative">
-                        <select value={targetYear} onChange={(e) => setTargetYear(e.target.value)} className="w-full bg-slate-50 border border-slate-200 p-3.5 rounded-2xl text-sm focus:ring-2 focus:ring-[#111827]/10 focus:border-[#111827]/40 transition-all outline-none text-slate-800 appearance-none">
+                        <select value={targetYear} onChange={(e) => setTargetYear(e.target.value)} className="w-full bg-slate-50 border border-slate-200 p-3 sm:p-3.5 rounded-2xl text-sm focus:ring-2 focus:ring-[#111827]/10 focus:border-[#111827]/40 transition-all outline-none text-slate-800 appearance-none">
                           {availableYears.map(year => <option key={year} value={year}>{year}</option>)}
                         </select>
                         <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-400"><svg className="fill-current h-4 w-4" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg></div>
@@ -658,29 +837,29 @@ export default function ShraadApp() {
                     <div>
                       <label className="block text-[10px] uppercase tracking-[0.2em] font-bold text-slate-400 mb-2 ml-1">Timezone of passing</label>
                       <div className="relative">
-                        <select value={selectedZone} onChange={(e) => setSelectedZone(e.target.value)} className="w-full bg-slate-50 border border-slate-200 p-3.5 rounded-2xl text-sm focus:ring-2 focus:ring-[#111827]/10 focus:border-[#111827]/40 transition-all outline-none text-slate-800 appearance-none">
+                        <select value={selectedZone} onChange={(e) => setSelectedZone(e.target.value)} className="w-full bg-slate-50 border border-slate-200 p-3 sm:p-3.5 rounded-2xl text-sm focus:ring-2 focus:ring-[#111827]/10 focus:border-[#111827]/40 transition-all outline-none text-slate-800 appearance-none">
                           {TIMEZONES.map(z => <option key={z} value={z}>{z}</option>)}
                         </select>
                         <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-400"><svg className="fill-current h-4 w-4" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg></div>
                       </div>
                     </div>
                   </div>
-                  <div className="flex flex-col sm:flex-row gap-4 pt-2">
-                    <button type="submit" disabled={loadingPitra} className="w-full sm:w-3/4 bg-gradient-to-r from-[#111827] to-[#1e293b] text-white font-semibold py-4 rounded-2xl transition-all shadow-lg shadow-[#111827]/20">
+                  <div className="flex items-center gap-2.5 sm:gap-4 pt-1">
+                    <button type="submit" disabled={loadingPitra} className="flex-1 bg-gradient-to-r from-[#111827] to-[#1e293b] text-white font-semibold py-3 sm:py-3.5 px-4 sm:px-6 rounded-xl sm:rounded-2xl text-xs sm:text-sm transition-all shadow-lg shadow-[#111827]/20 whitespace-nowrap">
                       {loadingPitra ? "Mapping Fortnight..." : "Generate Calendar"}
                     </button>
-                    <button type="button" onClick={() => setIsFeedbackOpen(true)} className="w-full sm:w-1/4 bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 font-semibold py-4 rounded-2xl transition-all shadow-sm flex items-center justify-center gap-2">Feedback</button>
+                    <button type="button" onClick={() => setIsFeedbackOpen(true)} className="shrink-0 bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 font-semibold py-3 sm:py-3.5 px-4 sm:px-6 rounded-xl sm:rounded-2xl text-xs sm:text-sm transition-all shadow-sm flex items-center justify-center whitespace-nowrap">Feedback</button>
                   </div>
                 </form>
               )}
 
               {/* --- COLD START BANNER --- */}
               {(isSlowLoading && (loadingCalc || loadingRev || loadingPitra)) && (
-                <div className="bg-amber-50 border border-amber-200 p-5 rounded-2xl shadow-sm anim-fade-up flex items-start gap-4 mb-2">
-                  <div className="text-2xl animate-spin mt-1">⏳</div>
+                <div className="bg-amber-50 border border-amber-200 p-4 sm:p-5 rounded-2xl shadow-sm anim-fade-up flex items-start gap-3 sm:gap-4 mb-2">
+                  <div className="text-xl sm:text-2xl animate-spin mt-1">⏳</div>
                   <div>
                     <h4 className="text-[11px] font-bold text-amber-900 uppercase tracking-widest mb-1.5">🌙 Waking up the astronomical servers...</h4>
-                    <p className="text-[13px] sm:text-sm text-amber-800 leading-relaxed">
+                    <p className="text-xs sm:text-sm text-amber-800 leading-relaxed">
                       Since we don’t charge Dakshina for this digital tool, our servers like to take naps to save energy. Our digital pandit is currently waking up, stretching, and finding his glasses. Please give him 15–20 seconds to do the math!
                     </p>
                   </div>
@@ -692,39 +871,39 @@ export default function ShraadApp() {
                 
                 {/* Result: Standard Search */}
                 {activeTab === 0 && calcData?.success && (
-                  <div className="space-y-6 border-t border-slate-100 pt-8 anim-fade-up">
+                  <div className="space-y-4 sm:space-y-6 border-t border-slate-100 pt-6 sm:pt-8 anim-fade-up">
                     {calcData.results.map((res: any, idx: number) => (
-                      <div key={idx} className="bg-[#F8F9FA] border border-slate-200 p-6 sm:p-8 rounded-3xl relative overflow-hidden">
-                        {res.scenario_type === 'predawn' && <div className="bg-[#111827] text-white p-3 rounded-xl mb-6 text-sm font-medium inline-block shadow-sm"><span className="mr-2 opacity-80">🌙</span> If passing occurred BEFORE dawn (~6:30 AM)</div>}
-                        {res.scenario_type === 'postdawn' && <div className="bg-white border border-slate-200 text-slate-800 p-3 rounded-xl mb-6 text-sm font-medium inline-block shadow-sm"><span className="mr-2 opacity-80">☀️</span> If passing occurred AFTER dawn (~6:30 AM)</div>}
+                      <div key={idx} className="bg-[#F8F9FA] border border-slate-200 p-4 sm:p-8 rounded-2xl sm:rounded-3xl relative overflow-hidden">
+                        {res.scenario_type === 'predawn' && <div className="bg-[#111827] text-white p-2.5 sm:p-3 rounded-xl mb-4 sm:mb-6 text-xs sm:text-sm font-medium inline-block shadow-sm"><span className="mr-1.5 opacity-80">🌙</span> If passing occurred BEFORE dawn (~6:30 AM)</div>}
+                        {res.scenario_type === 'postdawn' && <div className="bg-white border border-slate-200 text-slate-800 p-2.5 sm:p-3 rounded-xl mb-4 sm:mb-6 text-xs sm:text-sm font-medium inline-block shadow-sm"><span className="mr-1.5 opacity-80">☀️</span> If passing occurred AFTER dawn (~6:30 AM)</div>}
                         
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-                          <div className="bg-white border border-slate-100 p-4 rounded-2xl shadow-sm"><span className="text-[10px] text-slate-400 block uppercase tracking-[0.2em] font-bold mb-1">Lunar Masa</span><span className="text-slate-800 font-serif text-lg font-bold">{res.lunar_masa}</span></div>
-                          <div className="bg-white border border-slate-100 p-4 rounded-2xl shadow-sm"><span className="text-[10px] text-slate-400 block uppercase tracking-[0.2em] font-bold mb-1">Official Tithi</span><span className="text-slate-800 font-serif text-lg font-bold">{res.official_tithi}</span></div>
+                        <div className="grid grid-cols-2 gap-2.5 sm:gap-4 mb-4 sm:mb-6">
+                          <div className="bg-white border border-slate-100 p-3 sm:p-4 rounded-xl sm:rounded-2xl shadow-sm"><span className="text-[9px] sm:text-[10px] text-slate-400 block uppercase tracking-[0.15em] sm:tracking-[0.2em] font-bold mb-1">Lunar Masa</span><span className="text-slate-800 font-serif text-sm sm:text-lg font-bold">{res.lunar_masa}</span></div>
+                          <div className="bg-white border border-slate-100 p-3 sm:p-4 rounded-xl sm:rounded-2xl shadow-sm"><span className="text-[9px] sm:text-[10px] text-slate-400 block uppercase tracking-[0.15em] sm:tracking-[0.2em] font-bold mb-1">Official Tithi</span><span className="text-slate-800 font-serif text-sm sm:text-lg font-bold">{res.official_tithi}</span></div>
                         </div>
 
                         {res.shraad_date_str ? (
                           <>
-                            <div className="bg-[#111827] rounded-[2rem] p-8 sm:p-10 shadow-xl relative overflow-hidden text-center mb-6">
+                            <div className="bg-[#111827] rounded-2xl sm:rounded-[2rem] p-5 sm:p-10 shadow-xl relative overflow-hidden text-center mb-4 sm:mb-6">
                               <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-slate-400/50 to-transparent"></div>
-                              <div className="text-slate-400/80 text-3xl mb-3">🕊️</div>
-                              <p className="text-[10px] sm:text-xs uppercase tracking-[0.3em] font-bold text-slate-400 mb-2">Calculated Shraad Date</p>
-                              <h3 className="text-3xl sm:text-4xl lg:text-5xl font-serif font-bold text-white leading-tight py-2">{res.shraad_date_str}</h3>
+                              <div className="text-slate-400/80 text-2xl sm:text-3xl mb-2 sm:mb-3">🕊️</div>
+                              <p className="text-[9px] sm:text-xs uppercase tracking-[0.22em] sm:tracking-[0.3em] font-bold text-slate-400 mb-1.5 sm:mb-2">Calculated Shraad Date</p>
+                              <h3 className="text-2xl sm:text-4xl lg:text-5xl font-serif font-bold text-white leading-snug py-1 sm:py-2">{res.shraad_date_str}</h3>
                             </div>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-                              <a href={generateGCalUrl(res.shraad_raw_date, personName)} target="_blank" rel="noreferrer" className="group flex items-center justify-center bg-white border border-slate-200 hover:border-[#111827]/30 text-slate-700 text-sm font-bold py-4 rounded-2xl transition-all shadow-sm"><span className="mr-2 group-hover:scale-110 transition-transform duration-300">📅</span> Google Calendar</a>
-                              <button onClick={() => downloadICS(res.shraad_raw_date, personName)} className="group flex items-center justify-center bg-white border border-slate-200 hover:border-[#111827]/30 text-slate-700 text-sm font-bold py-4 rounded-2xl transition-all shadow-sm"><span className="mr-2 group-hover:scale-110 transition-transform duration-300">📥</span> Apple / Outlook</button>
+                            <div className="grid grid-cols-2 gap-2.5 sm:gap-4 mb-4 sm:mb-6">
+                              <a href={generateGCalUrl(res.shraad_raw_date, personName)} target="_blank" rel="noreferrer" className="group flex items-center justify-center bg-white border border-slate-200 hover:border-[#111827]/30 text-slate-700 text-xs sm:text-sm font-bold py-2.5 sm:py-4 px-2.5 sm:px-4 rounded-xl sm:rounded-2xl transition-all shadow-sm whitespace-nowrap"><span className="mr-1.5 sm:mr-2 group-hover:scale-110 transition-transform duration-300">📅</span> Google Calendar</a>
+                              <button onClick={() => downloadICS(res.shraad_raw_date, personName)} className="group flex items-center justify-center bg-white border border-slate-200 hover:border-[#111827]/30 text-slate-700 text-xs sm:text-sm font-bold py-2.5 sm:py-4 px-2.5 sm:px-4 rounded-xl sm:rounded-2xl transition-all shadow-sm whitespace-nowrap"><span className="mr-1.5 sm:mr-2 group-hover:scale-110 transition-transform duration-300">📥</span> Apple / Outlook</button>
                             </div>
-                            <div className="bg-white border border-slate-100 p-6 sm:p-8 rounded-3xl shadow-sm">
-                              <h3 className="text-[10px] uppercase font-bold text-slate-400 tracking-[0.2em] mb-4 pb-4 border-b border-slate-100">📅 Upcoming Dates (Next 5 Years)</h3>
-                              <ul className="space-y-4">
+                            <div className="bg-white border border-slate-100 p-4 sm:p-8 rounded-2xl sm:rounded-3xl shadow-sm">
+                              <h3 className="text-[10px] uppercase font-bold text-slate-400 tracking-[0.18em] sm:tracking-[0.2em] mb-3.5 sm:mb-4 pb-3 sm:pb-4 border-b border-slate-100">📅 Upcoming Dates (Next 5 Years)</h3>
+                              <ul className="space-y-2.5 sm:space-y-4">
                                 {res.future_dates.map((fd: any, fIdx: number) => {
                                   const formatted = formatUpcomingDate(fd.raw_date, deathDate);
                                   return (
-                                    <li key={fIdx} className={`flex justify-between items-center ${fIdx !== res.future_dates.length - 1 ? 'border-b border-slate-50 pb-4' : ''}`}>
-                                      <span className="font-serif font-bold text-slate-400 text-lg">{fd.year}</span>
-                                      <span className={`${formatted.isExactMatch ? 'text-[#111827] font-bold bg-slate-100 px-3 py-1 rounded-lg border border-slate-200 shadow-sm flex items-center gap-2' : 'text-slate-700 font-semibold'}`}>
-                                        {formatted.isExactMatch && <span className="text-sm">🕊️</span>}
+                                    <li key={fIdx} className={`flex justify-between items-center gap-3 text-xs sm:text-base ${fIdx !== res.future_dates.length - 1 ? 'border-b border-slate-50 pb-2.5 sm:pb-4' : ''}`}>
+                                      <span className="font-serif font-bold text-slate-400 text-sm sm:text-lg whitespace-nowrap">{fd.year}</span>
+                                      <span className={`whitespace-nowrap ${formatted.isExactMatch ? 'text-[#111827] font-bold bg-slate-100 px-2.5 sm:px-3 py-1 rounded-lg border border-slate-200 shadow-sm flex items-center gap-1.5 sm:gap-2' : 'text-slate-700 font-semibold'}`}>
+                                        {formatted.isExactMatch && <span className="text-xs sm:text-sm">🕊️</span>}
                                         {formatted.text}
                                       </span>
                                     </li>
@@ -734,7 +913,7 @@ export default function ShraadApp() {
                             </div>
                           </>
                         ) : (
-                          <div className="bg-rose-50 border border-rose-100 text-rose-800 p-5 rounded-2xl text-sm flex items-center gap-3"><span className="text-xl">🚨</span> Could not accurately resolve a date match.</div>
+                          <div className="bg-rose-50 border border-rose-100 text-rose-800 p-4 sm:p-5 rounded-2xl text-xs sm:text-sm flex items-center gap-3"><span className="text-xl">🚨</span> Could not accurately resolve a date match.</div>
                         )}
                       </div>
                     ))}
@@ -743,23 +922,23 @@ export default function ShraadApp() {
 
                 {/* Result: Reverse Lookup */}
                 {activeTab === 1 && revData?.success && (
-                  <div className="border-t border-slate-100 pt-8 anim-fade-up">
+                  <div className="border-t border-slate-100 pt-6 sm:pt-8 anim-fade-up">
                     {revData.matches.length === 0 ? (
-                       <div className="bg-rose-50 border border-rose-100 text-rose-800 p-5 rounded-2xl text-sm flex items-center gap-3"><span className="text-xl">🚨</span> Could not find any day in {revData.year} where this Tithi was active. It may have been a Kshaya Tithi.</div>
+                       <div className="bg-rose-50 border border-rose-100 text-rose-800 p-4 sm:p-5 rounded-2xl text-xs sm:text-sm flex items-center gap-3"><span className="text-xl">🚨</span> Could not find any day in {revData.year} where this Tithi was active. It may have been a Kshaya Tithi.</div>
                     ) : (
-                      <div className="space-y-6">
+                      <div className="space-y-4 sm:space-y-6">
                         {revData.matches.map((m: any, i: number) => (
-                          <div key={i} className="bg-[#111827] rounded-[2rem] p-8 sm:p-10 shadow-xl relative overflow-hidden text-center">
+                          <div key={i} className="bg-[#111827] rounded-2xl sm:rounded-[2rem] p-5 sm:p-10 shadow-xl relative overflow-hidden text-center">
                              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-slate-400/50 to-transparent"></div>
-                             <div className="text-slate-400/80 text-3xl mb-3">🕊️</div>
-                             <p className="text-[10px] sm:text-xs uppercase tracking-[0.3em] font-bold text-slate-400 mb-2">{revData.matches.length > 1 ? (i===0 ? "Primary Match" : "Secondary Match") : "Original Date of Passing"}</p>
-                             <h3 className="text-3xl sm:text-4xl lg:text-5xl font-serif font-bold text-white leading-tight py-2">{m.date_formatted}</h3>
-                             <div className="w-16 h-[1px] bg-slate-700 mx-auto my-5"></div>
-                             <p className="text-slate-300 text-xs uppercase tracking-[0.15em] font-semibold">{revData.tithi_formatted} in <span className="text-white">{revData.month_name} {revData.year}</span></p>
+                             <div className="text-slate-400/80 text-2xl sm:text-3xl mb-2 sm:mb-3">🕊️</div>
+                             <p className="text-[9px] sm:text-xs uppercase tracking-[0.22em] sm:tracking-[0.3em] font-bold text-slate-400 mb-1.5 sm:mb-2">{revData.matches.length > 1 ? (i===0 ? "Primary Match" : "Secondary Match") : "Original Date of Passing"}</p>
+                             <h3 className="text-2xl sm:text-4xl lg:text-5xl font-serif font-bold text-white leading-snug py-1 sm:py-2">{m.date_formatted}</h3>
+                             <div className="w-14 sm:w-16 h-[1px] bg-slate-700 mx-auto my-3.5 sm:my-5"></div>
+                             <p className="text-slate-300 text-[11px] sm:text-xs uppercase tracking-[0.15em] font-semibold">{revData.tithi_formatted} in <span className="text-white">{revData.month_name} {revData.year}</span></p>
                           </div>
                         ))}
-                        <div className="pt-4 flex justify-center">
-                           <button onClick={() => triggerTransfer(revData.matches[0].raw_date)} className="group flex items-center gap-3 bg-white border border-slate-200 hover:border-[#111827]/40 text-[#111827] font-bold px-8 py-4 rounded-full transition-all shadow-md hover:shadow-lg">
+                        <div className="pt-2 sm:pt-4 flex justify-center">
+                           <button onClick={() => triggerTransfer(revData.matches[0].raw_date)} className="group flex items-center gap-2.5 sm:gap-3 bg-white border border-slate-200 hover:border-[#111827]/40 text-[#111827] font-bold text-xs sm:text-sm px-6 sm:px-8 py-3 sm:py-4 rounded-full transition-all shadow-md hover:shadow-lg">
                              Calculate Upcoming Shraad <span className="group-hover:translate-x-1 transition-transform">➡️</span>
                            </button>
                         </div>
