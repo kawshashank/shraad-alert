@@ -158,6 +158,7 @@ export default function ShraadApp() {
     const INACTIVITY_LIMIT_MS = 60 * 60 * 1000; // 1 hour
     const ACTIVITY_KEY = 'vitasta_last_activity';
     let lastActive = Date.now();
+    let lastSessionCheck = lastActive;
     try {
       localStorage.setItem(ACTIVITY_KEY, String(lastActive));
     } catch {}
@@ -168,6 +169,17 @@ export default function ShraadApp() {
         localStorage.removeItem(ACTIVITY_KEY);
       } catch {}
       window.location.href = `${hubOrigin}/logout`;
+    };
+
+    const verifySessionOnServer = () => {
+      fetch(`${hubOrigin}/api/hub-session`, { credentials: 'include' })
+        .then(res => res.ok ? res.json() : null)
+        .then(sData => {
+          if (sData?.invalidated) {
+            triggerLogout();
+          }
+        })
+        .catch(() => {});
     };
 
     const onActivity = () => {
@@ -182,8 +194,13 @@ export default function ShraadApp() {
           localStorage.setItem(ACTIVITY_KEY, String(now));
         } catch {}
       }
+      if (now - lastSessionCheck > 30_000) {
+        lastSessionCheck = now;
+        verifySessionOnServer();
+      }
     };
 
+    // Pure client-side idle check (0 DB calls when inactive so Neon can sleep)
     const checkIdle = () => {
       const now = Date.now();
       let storedLast = lastActive;
@@ -193,22 +210,15 @@ export default function ShraadApp() {
       } catch {}
       if (now - storedLast >= INACTIVITY_LIMIT_MS) {
         triggerLogout();
-        return;
-      }
-      if (document.visibilityState === 'visible') {
-        fetch(`${hubOrigin}/api/hub-session`, { credentials: 'include' })
-          .then(res => res.ok ? res.json() : null)
-          .then(sData => {
-            if (sData?.invalidated) {
-              triggerLogout();
-            }
-          })
-          .catch(() => {});
       }
     };
 
     const onVisChange = () => {
-      if (document.visibilityState === 'visible') checkIdle();
+      if (document.visibilityState === 'visible') {
+        checkIdle();
+        lastSessionCheck = Date.now();
+        verifySessionOnServer();
+      }
     };
 
     const events = ['pointerdown', 'keydown', 'touchstart', 'scroll'];
