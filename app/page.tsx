@@ -193,6 +193,17 @@ export default function ShraadApp() {
       } catch {}
       if (now - storedLast >= INACTIVITY_LIMIT_MS) {
         triggerLogout();
+        return;
+      }
+      if (document.visibilityState === 'visible') {
+        fetch(`${hubOrigin}/api/hub-session`, { credentials: 'include' })
+          .then(res => res.ok ? res.json() : null)
+          .then(sData => {
+            if (sData?.invalidated) {
+              triggerLogout();
+            }
+          })
+          .catch(() => {});
       }
     };
 
@@ -481,7 +492,7 @@ export default function ShraadApp() {
     let body = `User Email: ${email}\n\n`;
     if (feedbackType === "bug") { body += `--- BUG REPORT ---\nActual Date: ${fd.get('fb_dob')}\nExpected: ${fd.get('fb_expected')}\nApp Result: ${fd.get('fb_actual')}\nNotes: ${fd.get('fb_notes')}`; } 
     else { body += `--- FEEDBACK ---\n${fd.get('fb_text')}`; }
-    window.location.href = `mailto:kawshashank@gmail.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    window.location.href = `mailto:vitastahub@gmail.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     setIsFeedbackOpen(false);
   };
 
